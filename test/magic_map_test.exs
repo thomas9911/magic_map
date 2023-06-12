@@ -1,8 +1,9 @@
 defmodule MagicMapTest do
   use ExUnit.Case
-  require MagicMap
 
   import MagicMap, only: [sigil_O: 2, sigil_o: 2]
+
+  require MagicMap
 
   test "atom" do
     testing = 1234
