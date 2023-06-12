@@ -5,38 +5,51 @@ defmodule MagicMap do
 
   defp key_maker({key, _, nil}, func), do: func.(key)
 
+  defp key_maker({:{}, _, args}, func) do
+    # nested tuple
+
+    Enum.map(args, &key_maker(&1, func))
+  end
+
   defp key_maker(args, func) when tuple_size(elem(args, 0)) == 3 do
     # nested tuple
 
     args |> Tuple.to_list() |> Enum.map(&key_maker(&1, func))
   end
 
+  defp value_mapper({:{}, _, args}) do
+    args
+  end
+
+  defp value_mapper(args) when tuple_size(elem(args, 0)) == 3 do
+    Tuple.to_list(args)
+  end
+
+  defp value_mapper(value) do
+    value
+  end
+
   defp inner(value, func) do
     key = key_maker(value, func)
+    value = value |> value_mapper() |> List.wrap()
 
-    if is_list(key) do
-      quote bind_quoted: [value: value, key: key] do
-        key
-        |> Enum.with_index()
-        |> Map.new(fn {key, index} -> {key, elem(value, index)} end)
-      end
-    else
-      quote do
-        %{unquote(key) => unquote(value)}
-      end
-    end
+    keylist =
+      key
+      |> List.wrap()
+      |> Enum.with_index()
+      |> Enum.map(fn {key, index} -> {key, Enum.at(value, index)} end)
+
+    {:%{}, [], keylist}
   end
 
   defp inner_sigil(value, func) do
     keylist =
-      String.split(value, ~r{,\s*}, trim: true)
+      value
+      |> String.split(~r{,\s*}, trim: true)
       |> Enum.map(&String.to_existing_atom/1)
       |> Enum.map(&{func.(&1), Macro.var(&1, nil)})
 
-    quote do
-      keylist = unquote(keylist)
-      Map.new(keylist)
-    end
+    {:%{}, [], keylist}
   end
 
   defmacro atom(value) do
@@ -48,7 +61,6 @@ defmodule MagicMap do
   end
 
   defmacro string(value) do
-    IO.inspect(value)
     inner(value, &to_string/1)
   end
 
